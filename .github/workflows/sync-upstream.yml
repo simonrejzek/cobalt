@@ -5,6 +5,10 @@ on:
     - cron: "17 */6 * * *"
   workflow_dispatch:
 
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -17,6 +21,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Remember current fork state
+        id: fork_state
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Configure git
         run: |
@@ -48,14 +56,48 @@ jobs:
       - name: Reapply same-domain API patch
         run: node scripts/apply-path-api-patch.mjs
 
-      - name: Commit sync
+      - name: Detect effective changes
+        id: change_detection
         run: |
           git add web/src/lib/api/api-url.ts scripts/apply-path-api-patch.mjs .github/workflows/sync-upstream.yml Dockerfile.web docker/cobalt-web-nginx.conf
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
+          if git diff --cached --quiet "${{ steps.fork_state.outputs.sha }}" --; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Fork already matches the patched upstream state"
             exit 0
           fi
-          git commit -m "Sync upstream cobalt and reapply same-domain API patch"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Push main
-        run: git push --force origin HEAD:main
+      - name: Set up Node
+        if: steps.change_detection.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+          cache: pnpm
+
+      - name: Set up pnpm
+        if: steps.change_detection.outputs.changed == 'true'
+        uses: pnpm/action-setup@v4
+
+      - name: Validate patched web build
+        if: steps.change_detection.outputs.changed == 'true'
+        env:
+          WEB_DEFAULT_API: https://sync-check.invalid/__cobalt_sync_api_path__
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run --prefix web check
+          pnpm run --prefix web build
+          grep -R -n --fixed-strings "https://sync-check.invalid/__cobalt_sync_api_path__" web/build
+
+      - name: Validate API smoke test
+        if: steps.change_detection.outputs.changed == 'true'
+        run: .github/test.sh api
+
+      - name: Commit sync
+        if: steps.change_detection.outputs.changed == 'true'
+        run: |
+          git add web/src/lib/api/api-url.ts scripts/apply-path-api-patch.mjs .github/workflows/sync-upstream.yml Dockerfile.web docker/cobalt-web-nginx.conf
+          git commit -m "Sync upstream cobalt and verify patched same-domain build"
+
+      - name: Push tested main
+        if: steps.change_detection.outputs.changed == 'true'
+        run: git push --force-with-lease origin HEAD:main
