@@ -1,0 +1,57 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Backup custom files
+        run: |
+          mkdir -p /tmp/cobalt-sync/.github/workflows /tmp/cobalt-sync/scripts
+          cp .github/workflows/sync-upstream.yml /tmp/cobalt-sync/.github/workflows/sync-upstream.yml
+          cp scripts/apply-path-api-patch.mjs /tmp/cobalt-sync/scripts/apply-path-api-patch.mjs
+
+      - name: Reset to upstream main
+        run: |
+          git remote add upstream https://github.com/imputnet/cobalt.git || true
+          git fetch upstream main
+          git reset --hard upstream/main
+
+      - name: Restore custom files
+        run: |
+          mkdir -p .github/workflows scripts
+          cp /tmp/cobalt-sync/.github/workflows/sync-upstream.yml .github/workflows/sync-upstream.yml
+          cp /tmp/cobalt-sync/scripts/apply-path-api-patch.mjs scripts/apply-path-api-patch.mjs
+
+      - name: Reapply same-domain API patch
+        run: node scripts/apply-path-api-patch.mjs
+
+      - name: Commit sync
+        run: |
+          git add web/src/lib/api/api-url.ts scripts/apply-path-api-patch.mjs .github/workflows/sync-upstream.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Sync upstream cobalt and reapply same-domain API patch"
+
+      - name: Push main
+        run: git push --force origin HEAD:main

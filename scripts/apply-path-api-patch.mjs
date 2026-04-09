@@ -1,11 +1,16 @@
-import env from "$lib/env";
+import { readFileSync, writeFileSync } from "node:fs";
+
+const target = "web/src/lib/api/api-url.ts";
+const source = readFileSync(target, "utf8");
+
+const replacement = `import env from "$lib/env";
 import { get } from "svelte/store";
 import settings from "$lib/state/settings";
 
 const normalizeApiURL = (value: string) => {
     const url = new URL(value);
-    const pathname = url.pathname.replace(/\/+$/, "");
-    return `${url.origin}${pathname}`;
+    const pathname = url.pathname.replace(/\\/+$/, "");
+    return \`\${url.origin}\${pathname}\`;
 }
 
 export const currentApiURL = () => {
@@ -18,3 +23,10 @@ export const currentApiURL = () => {
 
     return normalizeApiURL(env.DEFAULT_API!);
 }
+`;
+
+if (source === replacement) {
+    process.exit(0);
+}
+
+writeFileSync(target, replacement);
