@@ -25,9 +25,11 @@ jobs:
 
       - name: Backup custom files
         run: |
-          mkdir -p /tmp/cobalt-sync/.github/workflows /tmp/cobalt-sync/scripts
+          mkdir -p /tmp/cobalt-sync/.github/workflows /tmp/cobalt-sync/scripts /tmp/cobalt-sync/docker
           cp .github/workflows/sync-upstream.yml /tmp/cobalt-sync/.github/workflows/sync-upstream.yml
           cp scripts/apply-path-api-patch.mjs /tmp/cobalt-sync/scripts/apply-path-api-patch.mjs
+          cp Dockerfile.web /tmp/cobalt-sync/Dockerfile.web
+          cp docker/cobalt-web-nginx.conf /tmp/cobalt-sync/docker/cobalt-web-nginx.conf
 
       - name: Reset to upstream main
         run: |
@@ -37,16 +39,18 @@ jobs:
 
       - name: Restore custom files
         run: |
-          mkdir -p .github/workflows scripts
+          mkdir -p .github/workflows scripts docker
           cp /tmp/cobalt-sync/.github/workflows/sync-upstream.yml .github/workflows/sync-upstream.yml
           cp /tmp/cobalt-sync/scripts/apply-path-api-patch.mjs scripts/apply-path-api-patch.mjs
+          cp /tmp/cobalt-sync/Dockerfile.web Dockerfile.web
+          cp /tmp/cobalt-sync/docker/cobalt-web-nginx.conf docker/cobalt-web-nginx.conf
 
       - name: Reapply same-domain API patch
         run: node scripts/apply-path-api-patch.mjs
 
       - name: Commit sync
         run: |
-          git add web/src/lib/api/api-url.ts scripts/apply-path-api-patch.mjs .github/workflows/sync-upstream.yml
+          git add web/src/lib/api/api-url.ts scripts/apply-path-api-patch.mjs .github/workflows/sync-upstream.yml Dockerfile.web docker/cobalt-web-nginx.conf
           if git diff --cached --quiet; then
             echo "No changes to commit"
             exit 0
