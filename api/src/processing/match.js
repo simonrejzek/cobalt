@@ -69,7 +69,9 @@ export default async function({ host, patternMatch, params, authType }) {
         let youtubeHLS = params.youtubeHLS;
         const hlsEnv = env.enableDeprecatedYoutubeHls;
 
-        if (hlsEnv === "never" || (hlsEnv === "key" && authType !== "key")) {
+        if (hlsEnv === "always") {
+            youtubeHLS = true;
+        } else if (hlsEnv === "never" || (hlsEnv === "key" && authType !== "key")) {
             youtubeHLS = false;
         }
 

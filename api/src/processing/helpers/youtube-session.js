@@ -37,7 +37,9 @@ const updateSession = (newSession) => {
 
 const loadSession = async () => {
     const sessionServerUrl = new URL(env.ytSessionServer);
-    sessionServerUrl.pathname = "/get_pot";
+    if (!sessionServerUrl.pathname || sessionServerUrl.pathname === "/") {
+        sessionServerUrl.pathname = "/token";
+    }
 
     const newSession = await fetch(
         sessionServerUrl,
