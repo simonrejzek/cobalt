@@ -202,19 +202,8 @@ export default async function (o) {
         innertubeClient = "IOS";
     }
 
-    // iOS client doesn't have adaptive formats of resolution >1080p,
-    // so we use the WEB_EMBEDDED client instead for those cases
-    let useSession =
-        env.ytSessionServer && (
-            (
-                !useHLS
-                && innertubeClient === "IOS"
-                && (
-                    (quality > 1080 && o.codec !== "h264")
-                    || (quality > 1080 && o.codec !== "vp9")
-                )
-            )
-        );
+    // Use a generated YouTube session for media URLs when available.
+    let useSession = Boolean(env.ytSessionServer && !useHLS);
 
     // we can get subtitles reliably only from the iOS client
     if (o.subtitleLang) {
